@@ -13,7 +13,7 @@
       <span class="brand-icon">⬡</span>
       <div>
         <h1>SYNC CUE ENGINE</h1>
-        <p class="brand-sub">Timecode synchronization &middot; Drone shows &middot; Projection mapping &middot; Pyrotechnics</p>
+        <p class="brand-sub">Audio engineering &middot; Timecode synchronization &middot; Web Audio API precision</p>
       </div>
     </div>
     <div class="clock-display">
@@ -47,8 +47,7 @@
             <thead>
               <tr>
                 <th>Time (mm:ss.ms)</th>
-                <th>Type</th>
-                <th>Value</th>
+                <th>Label</th>
                 <th></th>
               </tr>
             </thead>
@@ -62,35 +61,31 @@
           <button id="play-btn" class="btn-play" disabled>&#9654; &nbsp;PLAY</button>
           <button id="stop-btn" class="btn-stop" disabled>&#9632; &nbsp;STOP</button>
         </div>
-        <div class="dev-row">
-          <span class="dev-label">SYNC DEVIATION</span>
-          <span id="dev-value">&#8212;</span>
-          <span class="dev-unit">ms</span>
-        </div>
         <div id="cue-log"></div>
       </section>
 
     </div>
 
-    <!-- Stage -->
+    <!-- Right panel: Signal Monitor -->
     <div class="right-panel">
-      <div class="card stage-card">
+      <div class="card monitor-card">
         <div class="card-header">
-          <div class="card-title">Stage &nbsp;&middot;&nbsp; Drone Swarm Simulation</div>
-          <span id="stage-status" class="stage-status">9 drones &middot; idle</span>
+          <div class="card-title">Signal Monitor</div>
+          <span id="monitor-status" class="monitor-status">STANDBY</span>
         </div>
-        <div class="stage-wrap">
-          <canvas id="stage"></canvas>
-          <div id="stage-label"></div>
-          <div id="edit-overlay" class="hidden">
-            <div id="edit-bar">
-              <span id="edit-hint">EDIT MODE &nbsp;&middot;&nbsp; Drag drones &nbsp;&middot;&nbsp; Click stage to place</span>
-              <div class="edit-bar-btns">
-                <button id="edit-save">Save</button>
-                <button id="edit-cancel">Cancel</button>
-              </div>
+        <div class="indicator-wrap">
+          <div id="cue-indicator">
+            <div class="ind-cue-row">
+              <span class="ind-cue-prefix">&#9658;</span>
+              <span id="ind-cue-label">&#8212;</span>
+            </div>
+            <div class="ind-dev-row">
+              <span class="ind-dev-label">DEVIATION</span>
+              <span id="ind-dev-value">&#8212;</span>
+              <span class="ind-dev-unit">ms</span>
             </div>
           </div>
+          <p class="monitor-note">Trigger method: Tone.Transport &mdash; Web Audio API internal clock (not setInterval)</p>
         </div>
       </div>
     </div>

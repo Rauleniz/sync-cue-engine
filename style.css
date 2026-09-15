@@ -7,7 +7,6 @@
   --card:     #191932;
   --border:   #272748;
   --accent:   #00d4ff;
-  --accent2:  #7b4dff;
   --text:     #dde0f5;
   --muted:    #5a5a80;
   --ok:       #00e87a;
@@ -92,7 +91,7 @@ h1 {
 }
 
 .left-panel {
-  width: 370px;
+  width: 360px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -111,14 +110,6 @@ h1 {
 .card {
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
-  background: var(--card);
-}
-
-.stage-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  border-bottom: none;
   background: var(--card);
 }
 
@@ -175,7 +166,7 @@ h1 {
 
 .table-scroll {
   overflow-y: auto;
-  max-height: 200px;
+  max-height: 220px;
 }
 
 table { width: 100%; border-collapse: collapse; }
@@ -200,9 +191,8 @@ tbody tr.active { background: rgba(0,212,255,.07); }
 
 td { padding: 3px 5px; vertical-align: middle; }
 
-/* ── Inputs inside table ───────────────────────────────── */
-input[type="text"],
-select {
+/* ── Inputs ────────────────────────────────────────────── */
+input[type="text"] {
   background: rgba(255,255,255,.04);
   border: 1px solid var(--border);
   color: var(--text);
@@ -214,23 +204,11 @@ select {
   transition: border-color .15s;
 }
 
-input[type="text"]:focus,
-select:focus { border-color: var(--accent); }
-
+input[type="text"]:focus { border-color: var(--accent); }
 input[type="text"].error { border-color: var(--danger); }
 
-input[type="color"] {
-  width: 36px;
-  height: 24px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  background: transparent;
-  cursor: pointer;
-}
-
-select option { background: var(--surface); }
-
-.cue-time-input { width: 90px; font-size: 12px; }
+.cue-time-input  { width: 90px; }
+.cue-label-input { font-size: 12px; }
 
 /* ── Buttons ───────────────────────────────────────────── */
 .btn-small {
@@ -296,34 +274,6 @@ select option { background: var(--surface); }
 .btn-stop:hover:not(:disabled) { background: rgba(255,63,91,.08); }
 .btn-stop:disabled { opacity: .3; cursor: not-allowed; }
 
-/* ── Deviation ─────────────────────────────────────────── */
-.dev-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.dev-label {
-  font-size: 9px;
-  letter-spacing: 2px;
-  color: var(--muted);
-}
-
-#dev-value {
-  font-size: 22px;
-  color: var(--accent);
-  font-weight: bold;
-  min-width: 70px;
-  text-align: right;
-  transition: color .2s;
-}
-
-.dev-unit {
-  font-size: 11px;
-  color: var(--muted);
-}
-
 /* ── Cue log ───────────────────────────────────────────── */
 #cue-log { display: flex; flex-direction: column; gap: 2px; }
 
@@ -340,115 +290,113 @@ select option { background: var(--surface); }
 
 .log-entry:first-child { color: var(--text); }
 
-/* ── Stage ─────────────────────────────────────────────── */
-.stage-wrap {
+/* ── Signal Monitor (right panel) ──────────────────────── */
+.monitor-card {
   flex: 1;
-  position: relative;
-  overflow: hidden;
-  background: #0a0a18;
-}
-
-#stage {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-#stage-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 52px;
-  font-weight: bold;
-  letter-spacing: 10px;
-  text-transform: uppercase;
-  color: #fff;
-  text-shadow: 0 0 40px rgba(0,212,255,.9), 0 0 80px rgba(0,212,255,.4);
-  opacity: 0;
-  transition: opacity .25s;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.stage-status {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 1px;
-}
-
-/* ── Edit mode overlay ─────────────────────────────────── */
-#edit-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border: 2px solid var(--accent2);
-  z-index: 10;
-}
-
-#edit-overlay.hidden { display: none; }
-
-#edit-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(10,10,24,.92);
-  border-top: 1px solid var(--accent2);
-  padding: 8px 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--accent2);
-  pointer-events: all;
+  flex-direction: column;
+  border-bottom: none;
 }
 
-.edit-bar-btns { display: flex; gap: 8px; }
-
-#edit-save {
-  padding: 5px 16px;
-  background: var(--accent2);
-  color: #fff;
-  border: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: opacity .15s;
-}
-#edit-save:hover { opacity: .85; }
-
-#edit-cancel {
-  padding: 5px 14px;
-  background: transparent;
-  border: 1px solid var(--muted);
+.monitor-status {
+  font-size: 10px;
+  letter-spacing: 2px;
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: color .15s, border-color .15s;
 }
-#edit-cancel:hover { border-color: var(--danger); color: var(--danger); }
 
-/* Button shown in value cell for custom cues */
-.btn-edit-pos {
-  background: transparent;
-  border: 1px solid var(--accent2);
-  color: var(--accent2);
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 3px 8px;
-  cursor: pointer;
-  letter-spacing: 1px;
-  width: 100%;
-  transition: background .15s;
-  white-space: nowrap;
+.monitor-status.playing { color: var(--ok); }
+
+.indicator-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
 }
-.btn-edit-pos:hover { background: rgba(123,77,255,.12); }
-.btn-edit-pos.saved { border-color: var(--ok); color: var(--ok); }
+
+#cue-indicator {
+  width: 100%;
+  max-width: 500px;
+  padding: 3.5rem 2.5rem;
+  border: 1px solid var(--border);
+  text-align: center;
+  background:
+    linear-gradient(rgba(0,212,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  transition: border-color .4s;
+}
+
+#cue-indicator.fire {
+  animation: cue-flash .9s ease-out forwards;
+}
+
+@keyframes cue-flash {
+  0%   {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 60px rgba(0,212,255,.3);
+  }
+  100% {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+}
+
+.ind-cue-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 2rem;
+}
+
+.ind-cue-prefix {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+#ind-cue-label {
+  font-size: 2.4rem;
+  letter-spacing: .4em;
+  color: var(--accent);
+  min-height: 3rem;
+}
+
+.ind-dev-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ind-dev-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+#ind-dev-value {
+  font-size: 1.8rem;
+  color: var(--accent);
+  min-width: 90px;
+  text-align: right;
+  transition: color .2s;
+}
+
+.ind-dev-unit {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.monitor-note {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-align: center;
+  max-width: 500px;
+}
 
 /* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
