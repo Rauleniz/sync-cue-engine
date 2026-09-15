@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.npm
+
+# Build output
+dist/
+build/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Audio test files (add your own to track them explicitly)
+*.mp3
+*.wav
+*.ogg
+*.flac
