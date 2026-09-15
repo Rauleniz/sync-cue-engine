@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sync Cue Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="brand-icon">⬡</span>
+      <div>
+        <h1>SYNC CUE ENGINE</h1>
+        <p class="brand-sub">Timecode synchronization &middot; Drone shows &middot; Projection mapping &middot; Pyrotechnics</p>
+      </div>
+    </div>
+    <div class="clock-display">
+      <span id="transport-clock">00:00.000</span>
+      <span id="transport-label">STOPPED</span>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- Left panel -->
+    <div class="left-panel">
+
+      <section class="card">
+        <div class="card-title">Audio Track</div>
+        <label class="file-btn">
+          Load file &nbsp;(mp3 / wav)
+          <input type="file" id="audio-input" accept=".mp3,.wav,.ogg">
+        </label>
+        <div id="audio-name" class="file-name">No file loaded</div>
+        <div id="audio-dur" class="file-dur"></div>
+      </section>
+
+      <section class="card cue-card">
+        <div class="card-header">
+          <div class="card-title">Cue Sheet</div>
+          <button class="btn-small" id="add-cue-btn">+ Add</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time (mm:ss.ms)</th>
+                <th>Type</th>
+                <th>Value</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cue-list"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="transport-row">
+          <button id="play-btn" class="btn-play" disabled>&#9654; &nbsp;PLAY</button>
+          <button id="stop-btn" class="btn-stop" disabled>&#9632; &nbsp;STOP</button>
+        </div>
+        <div class="dev-row">
+          <span class="dev-label">SYNC DEVIATION</span>
+          <span id="dev-value">&#8212;</span>
+          <span class="dev-unit">ms</span>
+        </div>
+        <div id="cue-log"></div>
+      </section>
+
+    </div>
+
+    <!-- Stage -->
+    <div class="right-panel">
+      <div class="card stage-card">
+        <div class="card-header">
+          <div class="card-title">Stage &nbsp;&middot;&nbsp; Drone Swarm Simulation</div>
+          <span id="stage-status" class="stage-status">9 drones &middot; idle</span>
+        </div>
+        <div class="stage-wrap">
+          <canvas id="stage"></canvas>
+          <div id="stage-label"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tone@14/build/Tone.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
