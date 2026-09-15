@@ -8,8 +8,8 @@ const state = {
   cues: [],
 };
 
-let cueIdCounter = 0;
-let pendingCueEvents = []; // queue for audio-thread → DOM updates
+let cueIdCounter  = 0;
+let pendingCueEvents = []; // queue: audio scheduler → animation frame → DOM
 
 // ── DOM ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,9 @@ const cueLog         = $('cue-log');
 const stageCanvas    = $('stage');
 const stageLabel     = $('stage-label');
 const stageStatus    = $('stage-status');
+const editOverlay    = $('edit-overlay');
+const editSaveBtn    = $('edit-save');
+const editCancelBtn  = $('edit-cancel');
 
 const ctx = stageCanvas.getContext('2d');
 
@@ -55,19 +58,24 @@ const FORMATIONS = {
 // ── Drone render state ─────────────────────────────────────────────────────
 
 let drones = FORMATIONS.grid.map(p => ({
-  x: p.x, y: p.y,   // current position
-  tx: p.x, ty: p.y, // target position
+  x: p.x, y: p.y,    // current (animated) position
+  tx: p.x, ty: p.y,  // target position
   color: '#00d4ff',
-  phase: Math.random() * Math.PI * 2, // individual pulse offset
+  phase: Math.random() * Math.PI * 2,
 }));
 
 let flashAmt = 0; // 0–1, decays each frame
 
+// ── Edit mode state ────────────────────────────────────────────────────────
+
+let editMode = null;      // null | { cueId, savedPositions, rebuildFn }
+let draggingDrone = null; // index | null
+let hoveredDrone  = -1;   // index | -1
+
 // ── Time utilities ─────────────────────────────────────────────────────────
 
 function parseTime(str) {
-  // Accepts mm:ss.ms  or  mm:ss:ms
-  const s = str.replace(/(\d{2}):(\d{3})$/, '$1.$2'); // normalise last colon
+  const s = str.replace(/(\d{2}):(\d{3})$/, '$1.$2');
   const m = s.match(/^(\d+):(\d{2})\.(\d{1,3})$/);
   if (!m) return NaN;
   return +m[1] * 60 + +m[2] + +m[3].padEnd(3,'0') / 1000;
@@ -90,41 +98,163 @@ function resizeCanvas() {
 new ResizeObserver(resizeCanvas).observe(stageCanvas);
 resizeCanvas();
 
-// ── Cue firing (runs in animation frame, safe to touch DOM) ───────────────
+// ── Canvas coordinate helper ───────────────────────────────────────────────
+
+function canvasPos(e) {
+  const r = stageCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (stageCanvas.width  / r.width),
+    y: (e.clientY - r.top)  * (stageCanvas.height / r.height),
+  };
+}
+
+function findDroneNear(px, py, threshold = 36) {
+  const W = stageCanvas.width, H = stageCanvas.height;
+  let best = -1, bestD = threshold;
+  drones.forEach((d, i) => {
+    const dx = d.x * W - px, dy = d.y * H - py;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < bestD) { bestD = dist; best = i; }
+  });
+  return best;
+}
+
+// ── Edit mode ──────────────────────────────────────────────────────────────
+
+function enterEditMode(cue, rebuildFn) {
+  if (state.isPlaying) return;
+
+  // Snapshot current positions to restore on cancel
+  const savedPositions = drones.map(d => ({ x: d.x, y: d.y }));
+
+  // Move drones to cue's saved positions (or grid if not yet set)
+  let positions = null;
+  try { positions = JSON.parse(cue.value); } catch (_) {}
+  const src = (Array.isArray(positions) && positions.length === 9)
+    ? positions
+    : FORMATIONS.grid;
+
+  drones.forEach((d, i) => {
+    d.x = src[i].x; d.y = src[i].y;
+    d.tx = src[i].x; d.ty = src[i].y;
+  });
+
+  editMode = { cueId: cue.id, savedPositions, rebuildFn };
+  editOverlay.classList.remove('hidden');
+  stageStatus.textContent = '9 drones · EDIT MODE';
+}
+
+function exitEditMode(save) {
+  if (!editMode) return;
+
+  if (save) {
+    const positions = drones.map(d => ({
+      x: parseFloat(d.x.toFixed(4)),
+      y: parseFloat(d.y.toFixed(4)),
+    }));
+    const cue = state.cues.find(c => c.id === editMode.cueId);
+    if (cue) {
+      cue.value = JSON.stringify(positions);
+      editMode.rebuildFn(); // refresh the value cell button label
+    }
+  } else {
+    editMode.savedPositions.forEach((p, i) => {
+      drones[i].x = p.x; drones[i].y = p.y;
+      drones[i].tx = p.x; drones[i].ty = p.y;
+    });
+  }
+
+  editMode      = null;
+  draggingDrone = null;
+  hoveredDrone  = -1;
+  stageCanvas.style.cursor = '';
+  editOverlay.classList.add('hidden');
+  stageStatus.textContent = '9 drones · idle';
+}
+
+// ── Canvas mouse events (only active during edit mode) ────────────────────
+
+stageCanvas.addEventListener('mousedown', e => {
+  if (!editMode) return;
+  const { x, y } = canvasPos(e);
+  const idx = findDroneNear(x, y);
+  if (idx >= 0) {
+    draggingDrone = idx;
+    stageCanvas.style.cursor = 'grabbing';
+  }
+});
+
+stageCanvas.addEventListener('mousemove', e => {
+  if (!editMode) return;
+  const { x, y } = canvasPos(e);
+  const W = stageCanvas.width, H = stageCanvas.height;
+
+  if (draggingDrone !== null) {
+    drones[draggingDrone].x  = Math.max(.02, Math.min(.98, x / W));
+    drones[draggingDrone].y  = Math.max(.02, Math.min(.98, y / H));
+    drones[draggingDrone].tx = drones[draggingDrone].x;
+    drones[draggingDrone].ty = drones[draggingDrone].y;
+  } else {
+    hoveredDrone = findDroneNear(x, y);
+    stageCanvas.style.cursor = hoveredDrone >= 0 ? 'grab' : 'crosshair';
+  }
+});
+
+stageCanvas.addEventListener('mouseup', () => {
+  if (!editMode) return;
+  draggingDrone = null;
+  stageCanvas.style.cursor = hoveredDrone >= 0 ? 'grab' : 'crosshair';
+});
+
+stageCanvas.addEventListener('mouseleave', () => {
+  draggingDrone = null;
+  hoveredDrone  = -1;
+});
+
+// ── Cue firing (runs inside animation frame — safe to touch DOM) ───────────
 
 function fireCue(cue, deviationMs) {
-  // Deviation display
   const sign = deviationMs >= 0 ? '+' : '';
   devValue.textContent = `${sign}${deviationMs.toFixed(2)}`;
   const abs = Math.abs(deviationMs);
   devValue.style.color = abs < 5 ? 'var(--ok)' : abs < 20 ? 'var(--warn)' : 'var(--danger)';
 
-  // Highlight active cue row
   document.querySelectorAll('#cue-list tr').forEach(r => r.classList.remove('active'));
   const row = document.querySelector(`#cue-list tr[data-id="${cue.id}"]`);
   if (row) row.classList.add('active');
 
-  // Log
   const entry = document.createElement('div');
   entry.className = 'log-entry';
-  entry.textContent = `▸ ${formatTime(cue.timeSeconds)} · ${cue.type}: ${cue.value} · ${sign}${deviationMs.toFixed(2)} ms`;
+  entry.textContent = `▸ ${formatTime(cue.timeSeconds)} · ${cue.type}: ${cue.value.toString().slice(0,20)} · ${sign}${deviationMs.toFixed(2)} ms`;
   cueLog.prepend(entry);
   while (cueLog.children.length > 6) cueLog.lastChild.remove();
 
-  // Apply visual event
   switch (cue.type) {
     case 'color':
       drones.forEach(d => d.color = cue.value);
       stageStatus.textContent = `9 drones · color ${cue.value}`;
       break;
+
     case 'formation': {
       const f = FORMATIONS[cue.value];
       if (f) {
         drones.forEach((d,i) => { d.tx = f[i].x; d.ty = f[i].y; });
-        stageStatus.textContent = `9 drones · formation: ${cue.value}`;
+        stageStatus.textContent = `9 drones · ${cue.value}`;
       }
       break;
     }
+
+    case 'custom': {
+      try {
+        const pos = JSON.parse(cue.value);
+        if (Array.isArray(pos) && pos.length === 9) {
+          drones.forEach((d,i) => { d.tx = pos[i].x; d.ty = pos[i].y; });
+          stageStatus.textContent = `9 drones · custom`;
+        }
+      } catch (_) {}
+      break;
+    }
+
     case 'text':
       stageLabel.textContent = cue.value;
       stageLabel.style.opacity = '1';
@@ -132,6 +262,7 @@ function fireCue(cue, deviationMs) {
       stageLabel._t = setTimeout(() => { stageLabel.style.opacity = '0'; }, 2500);
       stageStatus.textContent = `9 drones · text cue`;
       break;
+
     case 'flash':
       flashAmt = 1;
       stageStatus.textContent = `9 drones · flash`;
@@ -148,13 +279,11 @@ function scheduleCues() {
   state.cues.forEach(cue => {
     if (!isFinite(cue.timeSeconds) || cue.timeSeconds < 0) return;
     Tone.Transport.schedule((time) => {
-      // Measure deviation: how far AudioContext clock is from the scheduled time
       const deviationMs = (Tone.context.currentTime - time) * 1000;
       pendingCueEvents.push({ cue, deviationMs });
     }, cue.timeSeconds);
   });
 
-  // Auto-stop when audio ends
   if (state.audioDuration > 0) {
     Tone.Transport.schedule(() => {
       pendingCueEvents.push({ stopSignal: true });
@@ -162,17 +291,17 @@ function scheduleCues() {
   }
 }
 
-// ── Transport controls ─────────────────────────────────────────────────────
+// ── Transport ──────────────────────────────────────────────────────────────
 
 async function play() {
-  await Tone.start(); // unlock AudioContext (requires user gesture)
+  await Tone.start();
 
   Tone.Transport.stop();
   Tone.Transport.position = 0;
   resetStage();
   scheduleCues();
 
-  const t0 = Tone.now() + 0.1; // small buffer for scheduling safety
+  const t0 = Tone.now() + 0.1;
   if (state.player) state.player.start(t0);
   Tone.Transport.start(t0);
 
@@ -188,9 +317,7 @@ function stop() {
   Tone.Transport.cancel();
   pendingCueEvents = [];
 
-  if (state.player) {
-    try { state.player.stop(); } catch (_) {}
-  }
+  if (state.player) { try { state.player.stop(); } catch (_) {} }
 
   state.isPlaying = false;
   playBtn.disabled = !state.player;
@@ -225,13 +352,11 @@ function animate(ts) {
   const dt = Math.min((ts - lastTs) / 1000, 0.05);
   lastTs = ts;
 
-  // Drain pending cue events from audio scheduler
   pendingCueEvents.splice(0).forEach(ev => {
     if (ev.stopSignal) { stop(); return; }
     fireCue(ev.cue, ev.deviationMs);
   });
 
-  // Update transport clock
   if (state.isPlaying && Tone.Transport.state === 'started') {
     transportClock.textContent = formatTime(Tone.Transport.seconds);
   }
@@ -244,7 +369,6 @@ function draw(ts, dt) {
   const W = stageCanvas.width;
   const H = stageCanvas.height;
 
-  // Background
   ctx.fillStyle = '#0a0a18';
   ctx.fillRect(0, 0, W, H);
 
@@ -257,9 +381,12 @@ function draw(ts, dt) {
   }
 
   // Drones
-  drones.forEach(d => {
-    d.x += (d.tx - d.x) * Math.min(dt * 5, 1);
-    d.y += (d.ty - d.y) * Math.min(dt * 5, 1);
+  drones.forEach((d, i) => {
+    // Skip lerp while dragging this drone
+    if (draggingDrone !== i) {
+      d.x += (d.tx - d.x) * Math.min(dt * 5, 1);
+      d.y += (d.ty - d.y) * Math.min(dt * 5, 1);
+    }
 
     const px = d.x * W;
     const py = d.y * H;
@@ -280,9 +407,23 @@ function draw(ts, dt) {
     // Bright centre
     ctx.fillStyle = 'rgba(255,255,255,.85)';
     ctx.beginPath(); ctx.arc(px, py, R*.28, 0, Math.PI*2); ctx.fill();
+
+    // Edit mode: selection ring + drone index
+    if (editMode) {
+      const isActive = (i === draggingDrone || i === hoveredDrone);
+      ctx.strokeStyle = isActive ? '#ffffff' : 'rgba(123,77,255,.6)';
+      ctx.lineWidth   = isActive ? 2 : 1;
+      ctx.beginPath(); ctx.arc(px, py, 22, 0, Math.PI*2); ctx.stroke();
+
+      ctx.fillStyle = isActive ? '#ffffff' : 'rgba(255,255,255,.45)';
+      ctx.font = '10px Courier New';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i + 1, px, py - 30);
+    }
   });
 
-  // Flash overlay (decays each frame)
+  // Flash overlay
   if (flashAmt > 0) {
     ctx.fillStyle = `rgba(255,255,255,${flashAmt.toFixed(3)})`;
     ctx.fillRect(0, 0, W, H);
@@ -295,10 +436,8 @@ function draw(ts, dt) {
 audioInput.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
-
   await Tone.start();
 
-  // Clean up previous player
   if (state.player) {
     try { state.player.stop(); } catch (_) {}
     state.player.disconnect();
@@ -308,7 +447,7 @@ audioInput.addEventListener('change', async e => {
   if (state.audioURL) { URL.revokeObjectURL(state.audioURL); state.audioURL = null; }
 
   audioName.textContent = 'Loading…';
-  audioDur.textContent = '';
+  audioDur.textContent  = '';
   playBtn.disabled = true;
 
   state.audioURL = URL.createObjectURL(file);
@@ -318,7 +457,7 @@ audioInput.addEventListener('change', async e => {
       state.audioDuration = player.buffer.duration;
       state.player = player;
       audioName.textContent = file.name;
-      audioDur.textContent = formatTime(state.audioDuration);
+      audioDur.textContent  = formatTime(state.audioDuration);
       playBtn.disabled = false;
     },
     onerror: err => {
@@ -328,7 +467,7 @@ audioInput.addEventListener('change', async e => {
   }).toDestination();
 });
 
-// ── Cue sheet management ───────────────────────────────────────────────────
+// ── Cue sheet ──────────────────────────────────────────────────────────────
 
 function addCue(def = {}) {
   const cue = {
@@ -351,12 +490,13 @@ function renderCueRow(cue) {
       <select class="cue-type">
         <option value="color">Color</option>
         <option value="formation">Formation</option>
+        <option value="custom">Custom</option>
         <option value="text">Text</option>
         <option value="flash">Flash</option>
       </select>
     </td>
     <td class="val-cell"></td>
-    <td><button class="del-btn" title="Delete cue">&#10005;</button></td>
+    <td><button class="del-btn" title="Delete">&#10005;</button></td>
   `;
   tr.querySelector('.cue-type').value = cue.type;
 
@@ -366,10 +506,18 @@ function renderCueRow(cue) {
 
   function rebuildValueCell() {
     valCell.innerHTML = buildValueInput(cue);
+
+    // Standard inputs (color picker, formation select, text)
     const inp = valCell.querySelector('.cue-val');
-    if (inp) {
+    if (inp && cue.type !== 'custom') {
       inp.addEventListener('change', () => { cue.value = inp.value; });
       inp.addEventListener('input',  () => { cue.value = inp.value; });
+    }
+
+    // Custom: "Edit positions" button
+    const editBtn = valCell.querySelector('.btn-edit-pos');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => enterEditMode(cue, rebuildValueCell));
     }
   }
 
@@ -413,6 +561,13 @@ function buildValueInput(cue) {
         <option value="vline"   ${cue.value==='vline'   ?'selected':''}>V-Line</option>
         <option value="scatter" ${cue.value==='scatter' ?'selected':''}>Scatter</option>
       </select>`;
+    case 'custom': {
+      let saved = false;
+      try { saved = Array.isArray(JSON.parse(cue.value)); } catch (_) {}
+      return `<button class="btn-edit-pos${saved?' saved':''}">
+        ${saved ? 'Edit positions ↗' : 'Set positions ↗'}
+      </button>`;
+    }
     case 'text':
       return `<input class="cue-val" type="text" value="${cue.value.replace(/"/g,'&quot;')}" placeholder="Label" maxlength="20">`;
     default:
@@ -421,7 +576,13 @@ function buildValueInput(cue) {
 }
 
 function defaultValue(type) {
-  return { color:'#ff2266', formation:'circle', text:'CUE', flash:'#ffffff' }[type] || '';
+  return {
+    color:     '#ff2266',
+    formation: 'circle',
+    custom:    JSON.stringify(FORMATIONS.grid.map(p => ({x:p.x, y:p.y}))),
+    text:      'CUE',
+    flash:     '#ffffff',
+  }[type] || '';
 }
 
 function sortCues() {
@@ -437,8 +598,10 @@ function sortCues() {
 addCueBtn.addEventListener('click', () => addCue());
 playBtn.addEventListener('click', play);
 stopBtn.addEventListener('click', stop);
+editSaveBtn.addEventListener('click',   () => exitEditMode(true));
+editCancelBtn.addEventListener('click', () => exitEditMode(false));
 
-// ── Demo cues (pre-loaded to show the concept immediately) ─────────────────
+// ── Demo cues ──────────────────────────────────────────────────────────────
 
 [
   { timeStr:'00:01.000', type:'color',     value:'#ff2266' },
@@ -452,6 +615,6 @@ stopBtn.addEventListener('click', stop);
   { timeStr:'00:09.000', type:'formation', value:'grid'    },
 ].forEach(d => addCue({ ...d, timeSeconds: parseTime(d.timeStr) }));
 
-// ── Start render loop ──────────────────────────────────────────────────────
+// ── Start ──────────────────────────────────────────────────────────────────
 
 requestAnimationFrame(animate);
