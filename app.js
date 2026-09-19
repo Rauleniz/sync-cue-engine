@@ -85,7 +85,7 @@ function scheduleCues() {
   state.cues.forEach(cue => {
     if (!isFinite(cue.timeSeconds) || cue.timeSeconds < 0) return;
     Tone.Transport.schedule((time) => {
-      const deviationMs = (Tone.context.currentTime - time) * 1000;
+      const deviationMs = (Tone.context.currentTime + Tone.context.lookAhead - time) * 1000;
       pendingCueEvents.push({ cue, deviationMs });
     }, cue.timeSeconds);
   });
